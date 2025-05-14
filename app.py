@@ -18,6 +18,7 @@ def load_model():
     try:
         file_id = "11kWodly2XNUcOt7HdlBbD77sTsC4_I9o"
         url = f"https://drive.google.com/uc?id={file_id}"
+
         st.info("Downloading model weights from Google Drive...")
         response = requests.get(url)
         if response.status_code != 200:
