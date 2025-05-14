@@ -9,28 +9,35 @@ from sklearn.metrics import roc_curve
 import requests
 from io import BytesIO
 
-
-
 # --- Class labels (ensure same order as training) ---
 class_names = ['high', 'low', 'md', 'medium', 'zero']
 
-# --- Load model ---
+# --- Load model from Google Drive ---
 @st.cache_resource
 def load_model():
- file_id = "11Kwodly2XNUcOt7HdlBbD77sTsC4_I9o"  # ✅ Your Google Drive file ID
-    url = f"https://drive.google.com/uc?id={file_id}"
+    try:
+        file_id = "11Kwodly2XNUcOt7HdlBbD77sTsC4_I9o"  
+        url = f"https://drive.google.com/uc?id={file_id}"
 
-    response = requests.get(url)
-    buffer = BytesIO(response.content)
+        st.info("Downloading model weights from Google Drive...")
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise Exception("Failed to download model.")
 
-    model = ResNet50WithDropout(num_classes=len(class_names))
-    model.load_state_dict(torch.load(buffer,map_location=torch.device('cpu')))
-    model.eval()
-    return model
+        buffer = BytesIO(response.content)
+
+        model = ResNet50WithDropout(num_classes=len(class_names))
+        model.load_state_dict(torch.load(buffer, map_location=torch.device("cpu")))
+        model.eval()
+        st.success("Model loaded successfully.")
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
 
 model = load_model()
 
-# --- Image transforms (add normalization for pretrained resnet) ---
+# --- Image transforms ---
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -38,14 +45,14 @@ transform = transforms.Compose([
                          [0.229, 0.224, 0.225])
 ])
 
-# --- Title ---
+# --- Title and Instructions ---
 st.markdown("<h1 style='color:#198754;'>🧪 PPD Score Prediction from Tuber Images of Cassava</h1>", unsafe_allow_html=True)
 st.subheader("Upload a cassava tuber image to predict the Postharvest Physiological Deterioration (PPD) score.")
 
 # --- File upload ---
 uploaded_file = st.file_uploader("Choose a cassava tuber image...", type=["jpg", "jpeg", "png"])
 
-# --- Sidebar for multiple examples per class ---
+# --- Sidebar with example images ---
 st.sidebar.markdown("### 📊 Example Class Images")
 example_folder = "examples"
 for class_name in class_names:
@@ -53,25 +60,24 @@ for class_name in class_names:
     if os.path.isdir(class_path):
         st.sidebar.markdown(f"**{class_name.upper()}**")
         image_files = [f for f in os.listdir(class_path) if f.lower().endswith(('jpg', 'jpeg', 'png'))]
-        for img_file in image_files[:2]:  # show up to 2 per class
+        for img_file in image_files[:2]:
             img_path = os.path.join(class_path, img_file)
             st.sidebar.image(img_path, use_container_width=False, width=160)
-  # 👈 smaller, no caption
     else:
         st.sidebar.warning(f"No folder for '{class_name}'")
 
-# --- Prediction section ---
+# --- Prediction ---
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
-    
-    # Display image at smaller size (300px width)
-    st.image(image, caption="Uploaded Image", width=300)
+    if model is None:
+        st.error("Model is not loaded. Please check the Drive link or model format.")
+    else:
+        image = Image.open(uploaded_file).convert("RGB")
+        st.image(image, caption="Uploaded Image", width=300)
 
-    img_tensor = transform(image).unsqueeze(0)
-    with torch.no_grad():
-        outputs = model(img_tensor)
-        _, pred = torch.max(outputs, 1)
-        predicted_class = class_names[pred.item()]
+        img_tensor = transform(image).unsqueeze(0)
+        with torch.no_grad():
+            outputs = model(img_tensor)
+            _, pred = torch.max(outputs, 1)
+            predicted_class = class_names[pred.item()]
 
-    st.success(f"✅ Predicted Class: **{predicted_class.upper()}**")
-
+        st.success(f"✅ Predicted Class: **{predicted_class.upper()}**")
