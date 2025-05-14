@@ -16,7 +16,7 @@ class_names = ['high', 'low', 'md', 'medium', 'zero']
 @st.cache_resource
 def load_model():
     try:
-        file_id = "11Kwodly2XNUcOt7HdlBbD77sTsC4_I9o"  
+        file_id = "11kWodly2XNUcOt7HdlBbD77sTsC4_I9o"
         url = f"https://drive.google.com/uc?id={file_id}"
 
         st.info("Downloading model weights from Google Drive...")
@@ -31,6 +31,7 @@ def load_model():
         model.eval()
         st.success("Model loaded successfully.")
         return model
+
     except Exception as e:
         st.error(f"Error loading model: {e}")
         return None
