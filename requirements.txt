@@ -2,7 +2,8 @@
 streamlit
 torch
 torchvision
-Pillow
+pillow
 scikit-learn
 matplotlib
-
+requests
+gdown
