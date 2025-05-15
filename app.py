@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve
 import requests
 from io import BytesIO
+import gdown
 
 # --- Class labels (ensure same order as training) ---
 class_names = ['high', 'low', 'md', 'medium', 'zero']
@@ -18,13 +19,10 @@ def load_model():
     try:
         file_id = "11kWodly2XNUcOt7HdlBbD77sTsC4_I9o"
         url = f"https://drive.google.com/uc?id={file_id}"
+        output = "model_weights.pt"
 
         st.info("Downloading model weights from Google Drive...")
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception("Failed to download model.")
-
-        buffer = BytesIO(response.content)
+        gdown.download(url, output, quiet=False) 
 
         model = ResNet50WithDropout(num_classes=len(class_names))
         model.load_state_dict(torch.load(buffer, map_location=torch.device("cpu")))
