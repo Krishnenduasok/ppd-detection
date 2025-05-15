@@ -1,16 +1,20 @@
 import streamlit as st
 import torch
+import asyncio
 from torchvision import transforms
 from PIL import Image
 import os
 from model import ResNet50WithDropout
-import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve
 import requests
 from io import BytesIO
-import gdown
 
-# --- Class labels (ensure same order as training) ---
+# --- Fix for "RuntimeError: no running event loop" (Python 3.12 compatibility) ---
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+# --- Class labels ---
 class_names = ['high', 'low', 'md', 'medium', 'zero']
 
 # --- Load model from Google Drive ---
@@ -18,20 +22,23 @@ class_names = ['high', 'low', 'md', 'medium', 'zero']
 def load_model():
     try:
         file_id = "11kWodly2XNUcOt7HdlBbD77sTsC4_I9o"
-        url = f"https://drive.google.com/uc?id={file_id}"
-        output = "model_weights.pt"
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-        st.info("Downloading model weights from Google Drive...")
-        gdown.download(url, output, quiet=False) 
+        st.info("🔄 Downloading model weights from Google Drive...")
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise Exception("⚠️ Failed to download model from Google Drive. Check file permissions or URL.")
+
+        buffer = BytesIO(response.content)
 
         model = ResNet50WithDropout(num_classes=len(class_names))
         model.load_state_dict(torch.load(buffer, map_location=torch.device("cpu")))
         model.eval()
-        st.success("Model loaded successfully.")
+        st.success("✅ Model loaded successfully.")
         return model
 
     except Exception as e:
-        st.error(f"Error loading model: {e}")
+        st.error(f"❌ Error loading model: {e}")
         return None
 
 model = load_model()
@@ -44,14 +51,14 @@ transform = transforms.Compose([
                          [0.229, 0.224, 0.225])
 ])
 
-# --- Title and Instructions ---
+# --- App Title ---
 st.markdown("<h1 style='color:#198754;'>🧪 PPD Score Prediction from Tuber Images of Cassava</h1>", unsafe_allow_html=True)
 st.subheader("Upload a cassava tuber image to predict the Postharvest Physiological Deterioration (PPD) score.")
 
-# --- File upload ---
-uploaded_file = st.file_uploader("Choose a cassava tuber image...", type=["jpg", "jpeg", "png"])
+# --- File uploader ---
+uploaded_file = st.file_uploader("📤 Upload a cassava tuber image...", type=["jpg", "jpeg", "png"])
 
-# --- Sidebar with example images ---
+# --- Sidebar Examples ---
 st.sidebar.markdown("### 📊 Example Class Images")
 example_folder = "examples"
 for class_name in class_names:
@@ -59,16 +66,16 @@ for class_name in class_names:
     if os.path.isdir(class_path):
         st.sidebar.markdown(f"**{class_name.upper()}**")
         image_files = [f for f in os.listdir(class_path) if f.lower().endswith(('jpg', 'jpeg', 'png'))]
-        for img_file in image_files[:2]:
+        for img_file in image_files[:2]:  # show up to 2 per class
             img_path = os.path.join(class_path, img_file)
             st.sidebar.image(img_path, use_container_width=False, width=160)
     else:
-        st.sidebar.warning(f"No folder for '{class_name}'")
+        st.sidebar.warning(f"⚠️ No folder found for '{class_name}' in examples/")
 
-# --- Prediction ---
+# --- Prediction Section ---
 if uploaded_file is not None:
     if model is None:
-        st.error("Model is not loaded. Please check the Drive link or model format.")
+        st.error("❌ Model failed to load. Please check model definition or link.")
     else:
         image = Image.open(uploaded_file).convert("RGB")
         st.image(image, caption="Uploaded Image", width=300)
